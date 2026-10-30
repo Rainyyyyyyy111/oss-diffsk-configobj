@@ -196,9 +196,18 @@ def unrepr(s):
     if not s:
         return s
     
-    # this is supposed to be safe
     import ast
-    return ast.literal_eval(s)
+
+    class NonFiniteNames(ast.NodeTransformer):
+        def visit_Name(self, node):
+            if node.id in ('nan', 'inf'):
+                return ast.copy_location(ast.Constant(float(node.id)), node)
+            return node
+
+    # repr() emits these names for non-finite floats, including in containers.
+    # Keep literal_eval's restrictions on all other names and expressions.
+    tree = ast.parse(s.lstrip(' \t'), mode='eval')
+    return ast.literal_eval(NonFiniteNames().visit(tree))
 
 
 class ConfigObjError(SyntaxError):
